@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ledger — monthly spending dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #EEF1EC;
+    --card: #FFFFFF;
+    --ink: #1C2B22;
+    --ink-soft: #5B6B60;
+    --line: #D3D8CD;
+    --forest: #2F6F4E;
+    --forest-tint: #E4EEE7;
+    --rust: #9C4221;
+    --rust-tint: #F3E5DC;
+    --brass: #8A6D3B;
+    --brass-tint: #F0E9D8;
+    --danger: #B23A2E;
+    --radius: 6px;
+    --font-head: "Space Grotesk", system-ui, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, monospace;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #101A14; --card: #17231C; --ink: #E7EAE3; --ink-soft: #93A196;
+      --line: #2A362E; --forest: #6FBE95; --forest-tint: #1C3327; --rust: #E08A5C;
+      --rust-tint: #3A2417; --brass: #D4B36A; --brass-tint: #332A16; --danger: #E27B6E;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #101A14; --card: #17231C; --ink: #E7EAE3; --ink-soft: #93A196;
+    --line: #2A362E; --forest: #6FBE95; --forest-tint: #1C3327; --rust: #E08A5C;
+    --rust-tint: #3A2417; --brass: #D4B36A; --brass-tint: #332A16; --danger: #E27B6E;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-head);
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+
+  header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 1rem; border-bottom: 2px solid var(--ink); padding-bottom: 1rem;
+    margin-bottom: 1.75rem; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 0.6rem; }
+  h1 { font-size: 1.5rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  header p { margin: 0.2rem 0 0; color: var(--ink-soft); font-size: 0.9rem; }
+
+  #theme-toggle {
+    border: 1px solid var(--line); background: var(--card); color: var(--ink-soft);
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  #theme-toggle:hover { color: var(--ink); border-color: var(--ink-soft); }
+  #theme-toggle svg { width: 15px; height: 15px; }
+
+  .header-right { display: flex; align-items: center; gap: 1rem; }
+  .income-box { text-align: right; }
+  .income-box label { display: block; font-size: 0.75rem; color: var(--ink-soft); margin-bottom: 0.2rem; }
+  .income-row { display: flex; align-items: baseline; gap: 0.3rem; }
+  .income-row span.prefix { font-family: var(--font-num); font-size: 1.3rem; }
+  #income-input {
+    font-family: var(--font-num); font-size: 1.3rem; font-weight: 600; width: 8rem;
+    text-align: right; border: none; border-bottom: 1px solid var(--line);
+    background: transparent; color: var(--ink); padding: 0.1rem 0;
+  }
+  #income-input:focus-visible { outline: none; border-bottom-color: var(--forest); }
+
+  section { margin-bottom: 2rem; }
+  .section-label {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-soft); margin: 0 0 0.75rem; display: flex;
+    justify-content: space-between; align-items: baseline;
+  }
+  .entry-count { font-family: var(--font-num); text-transform: none; letter-spacing: normal; }
+
+  form#entry-form { display: grid; grid-template-columns: 1fr 7rem auto auto; gap: 0.6rem; align-items: start; }
+  .field { display: flex; flex-direction: column; gap: 0.3rem; }
+  input[type=text], input[type=number] {
+    font-family: var(--font-head); font-size: 0.95rem; padding: 0.55rem 0.7rem;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--card); color: var(--ink); width: 100%;
+  }
+  input[type=number] { font-family: var(--font-num); }
+  input:focus-visible { outline: 2px solid var(--forest); outline-offset: -1px; }
+  input.invalid { border-color: var(--danger); }
+  .field-error { font-size: 0.72rem; color: var(--danger); min-height: 1em; }
+
+  .cat-toggle { display: flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 0.78rem; height: fit-content; }
+  .cat-toggle button {
+    flex: 1; border: none; background: var(--card); color: var(--ink-soft);
+    padding: 0.55rem 0.5rem; cursor: pointer; font-family: var(--font-head);
+  }
+  .cat-toggle button.active.necessary { background: var(--forest-tint); color: var(--forest); font-weight: 600; }
+  .cat-toggle button.active.unnecessary { background: var(--rust-tint); color: var(--rust); font-weight: 600; }
+  .cat-toggle button:focus-visible { outline: 2px solid var(--forest); outline-offset: -2px; }
+
+  button.add-btn {
+    background: var(--ink); color: var(--paper); border: none; border-radius: var(--radius);
+    padding: 0.6rem 1rem; font-family: var(--font-head); font-weight: 600; font-size: 0.9rem;
+    cursor: pointer; height: fit-content; transition: opacity 0.15s ease;
+  }
+  button.add-btn:hover { opacity: 0.88; }
+  button.add-btn:active { transform: scale(0.98); }
+
+  .empty-note { color: var(--ink-soft); font-size: 0.88rem; border: 1px dashed var(--line); border-radius: var(--radius); padding: 1rem; margin-top: 0.75rem; }
+
+  ul#entry-list { list-style: none; margin: 1rem 0 0; padding: 0; }
+  ul#entry-list li {
+    display: grid; grid-template-columns: 1fr auto auto auto; align-items: center;
+    gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--line); font-size: 0.92rem;
+    animation: rowIn 0.25s ease;
+  }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { ul#entry-list li { animation: none; } }
+  .item-name { font-weight: 500; overflow-wrap: anywhere; }
+  .item-amount { font-family: var(--font-num); text-align: right; }
+  .tag { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+  .tag.necessary { background: var(--forest-tint); color: var(--forest); }
+  .tag.unnecessary { background: var(--rust-tint); color: var(--rust); }
+  .del-btn {
+    background: none; border: none; color: var(--ink-soft); font-size: 1.1rem;
+    cursor: pointer; line-height: 1; padding: 0.2rem 0.3rem; border-radius: 4px;
+  }
+  .del-btn:hover { color: var(--danger); }
+  .del-btn:focus-visible { outline: 2px solid var(--danger); }
+
+  .undo-toast {
+    display: none; align-items: center; justify-content: space-between; gap: 1rem;
+    background: var(--ink); color: var(--paper); border-radius: var(--radius);
+    padding: 0.6rem 0.9rem; font-size: 0.85rem; margin-top: 0.75rem;
+  }
+  .undo-toast.visible { display: flex; }
+  .undo-toast button { background: none; border: none; color: var(--paper); font-weight: 600; cursor: pointer; text-decoration: underline; font-family: var(--font-head); }
+
+  #dashboard { display: none; }
+  #dashboard.visible { display: block; }
+
+  .meter-wrap { margin-bottom: 1rem; }
+  .meter-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--ink-soft); margin-bottom: 0.35rem; }
+  .meter-track { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .meter-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease, background 0.4s ease; }
+
+  .stat-strip { display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .stat { padding: 0.9rem 0.6rem; text-align: center; border-right: 1px solid var(--line); background: var(--card); }
+  .stat:last-child { border-right: none; }
+  .stat .label { font-size: 0.68rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .value { font-family: var(--font-num); font-size: 1.05rem; font-weight: 600; margin-top: 0.25rem; }
+
+  .charts-grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 1.5rem; margin-top: 1.5rem; align-items: start; }
+  .chart-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; }
+  .chart-card h3 { font-size: 0.85rem; margin: 0 0 0.75rem; color: var(--ink-soft); font-weight: 600; }
+  .legend-row { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.75rem; color: var(--ink-soft); margin-top: 0.6rem; }
+  .legend-row span { display: flex; align-items: center; gap: 0.3rem; }
+  .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+  .suggestions { margin-top: 1.5rem; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; }
+  .suggestions h3 { font-size: 0.85rem; margin: 0 0 0.7rem; color: var(--ink-soft); font-weight: 600; }
+  .suggestions ul { margin: 0; padding: 0; list-style: none; }
+  .suggestions li { border-left: 2px solid var(--brass); padding: 0.15rem 0 0.6rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.9rem; line-height: 1.45; }
+  .suggestions li:last-child { margin-bottom: 0; }
+
+  footer { margin-top: 2.5rem; text-align: center; }
+  .clear-btn {
+    background: none; border: 1px solid var(--line); color: var(--ink-soft); border-radius: var(--radius);
+    padding: 0.45rem 0.9rem; font-size: 0.8rem; font-family: var(--font-head); cursor: pointer;
+  }
+  .clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  @media (max-width: 560px) {
+    form#entry-form { grid-template-columns: 1fr 1fr; }
+    form#entry-form .cat-toggle { grid-column: 1 / -1; }
+    form#entry-form button.add-btn { grid-column: 1 / -1; }
+    .stat-strip { grid-template-columns: repeat(2, 1fr); }
+    .stat:nth-child(2n) { border-right: none; }
+    .stat:nth-child(-n+4) { border-bottom: 1px solid var(--line); }
+    .charts-grid { grid-template-columns: 1fr; }
+    ul#entry-list li { grid-template-columns: 1fr auto auto; }
+    .item-amount { grid-row: 2; grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div>
+        <h1>Ledger</h1>
+        <p>Track what you spend, and what it's actually going toward.</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="income-box">
+        <label for="income-input">Monthly income</label>
+        <div class="income-row">
+          <span class="prefix">$</span>
+          <input type="number" id="income-input" placeholder="0" min="0" step="0.01" inputmode="decimal">
+        </div>
+      </div>
+      <button id="theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false">
+        <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <section>
+    <p class="section-label">
+      <span>Add a spending item</span>
+      <span class="entry-count" id="entry-count"></span>
+    </p>
+    <form id="entry-form" novalidate>
+      <div class="field">
+        <input type="text" id="item-input" placeholder="e.g. groceries, Netflix" autocomplete="off">
+        <span class="field-error" id="item-error"></span>
+      </div>
+      <div class="field">
+        <input type="number" id="amount-input" placeholder="Amount" min="0.01" step="0.01" inputmode="decimal">
+        <span class="field-error" id="amount-error"></span>
+      </div>
+      <div class="cat-toggle" role="group" aria-label="Category">
+        <button type="button" data-cat="necessary" class="cat-btn">Necessary</button>
+        <button type="button" data-cat="unnecessary" class="cat-btn">Unnecessary</button>
+      </div>
+      <button type="submit" class="add-btn">Add</button>
+    </form>
+    <div id="empty-note" class="empty-note">Nothing logged yet. Add your first item above — Ledger will guess whether it's necessary or unnecessary as you type.</div>
+    <ul id="entry-list"></ul>
+    <div class="undo-toast" id="undo-toast">
+      <span id="undo-message"></span>
+      <button type="button" id="undo-btn">Undo</button>
+    </div>
+    <div class="sr-only" role="status" aria-live="polite" id="live-region"></div>
+  </section>
+
+  <section id="dashboard">
+    <p class="section-label">Dashboard</p>
+
+    <div class="meter-wrap">
+      <div class="meter-label"><span>Spent this month</span><span id="meter-text"></span></div>
+      <div class="meter-track"><div class="meter-fill" id="meter-fill"></div></div>
+    </div>
+
+    <div class="stat-strip" id="stat-strip"></div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Income breakdown</h3>
+        <div style="position: relative; height: 200px;">
+          <canvas id="donut-chart" role="img" aria-label="Donut chart of necessary spending, unnecessary spending, and money left over">Breakdown of income between necessary spending, unnecessary spending, and leftover.</canvas>
+        </div>
+        <div class="legend-row" id="donut-legend"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Top spending items</h3>
+        <div style="position: relative; height: 220px;">
+          <canvas id="bar-chart" role="img" aria-label="Horizontal bar chart of top spending items">Top individual spending items by amount.</canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="suggestions">
+      <h3>Suggestions</h3>
+      <ul id="suggestion-list"></ul>
+    </div>
+  </section>
+
+  <footer>
+    <button class="clear-btn" id="clear-btn" type="button">Clear all entries</button>
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var NECESSARY_KEYWORDS = ["rent","mortgage","grocery","groceries","food","utility","utilities",
+    "electric","water","gas","insurance","medicine","medical","doctor","transport","bus","train",
+    "fuel","internet","phone","tuition","loan","debt","childcare","daycare"];
+  var UNNECESSARY_KEYWORDS = ["entertainment","movie","game","gaming","subscription","netflix",
+    "spotify","coffee","starbucks","eating out","restaurant","takeout","shopping","clothes",
+    "clothing","alcohol","bar","party","candy","snack","toy","hobby","vacation","travel"];
+
+  var STORE_ENTRIES = "ledger:entries";
+  var STORE_INCOME = "ledger:income";
+  var STORE_THEME = "ledger:theme";
+
+  var state = { income: 0, entries: [] };
+  var selectedCat = null;
+  var donutChart = null, barChart = null;
+  var lastDeleted = null;
+  var undoTimer = null;
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var currencyFmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+  function fmt(n) { return currencyFmt.format(isFinite(n) ? n : 0); }
+
+  function loadState() {
+    try {
+      var e = localStorage.getItem(STORE_ENTRIES);
+      var i = localStorage.getItem(STORE_INCOME);
+      if (e) state.entries = JSON.parse(e);
+      if (i) state.income = parseFloat(i) || 0;
+    } catch (err) { /* storage unavailable, start fresh */ }
+  }
+  function saveState() {
+    try {
+      localStorage.setItem(STORE_ENTRIES, JSON.stringify(state.entries));
+      localStorage.setItem(STORE_INCOME, String(state.income));
+    } catch (err) { /* ignore */ }
+  }
+
+  function loadTheme() {
+    try {
+      var t = localStorage.getItem(STORE_THEME);
+      if (t === "light" || t === "dark") applyTheme(t);
+    } catch (err) { /* ignore */ }
+  }
+  function applyTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    var toggle = document.getElementById("theme-toggle");
+    var isDark = t === "dark";
+    toggle.setAttribute("aria-pressed", String(isDark));
+    toggle.setAttribute("aria-label", isDark ? "Switch to light theme" : "Switch to dark theme");
+    document.getElementById("theme-icon").innerHTML = isDark
+      ? '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path>'
+      : '<circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>';
+  }
+  document.getElementById("theme-toggle").addEventListener("click", function () {
+    var current = document.documentElement.getAttribute("data-theme");
+    var isDark = current === "dark" || (!current && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    var next = isDark ? "light" : "dark";
+    applyTheme(next);
+    try { localStorage.setItem(STORE_THEME, next); } catch (err) { /* ignore */ }
+  });
+
+  function suggestCategory(name) {
+    var lower = name.toLowerCase();
+    for (var i = 0; i < NECESSARY_KEYWORDS.length; i++) if (lower.indexOf(NECESSARY_KEYWORDS[i]) !== -1) return "necessary";
+    for (var j = 0; j < UNNECESSARY_KEYWORDS.length; j++) if (lower.indexOf(UNNECESSARY_KEYWORDS[j]) !== -1) return "unnecessary";
+    return null;
+  }
+
+  var itemInput = document.getElementById("item-input");
+  var amountInput = document.getElementById("amount-input");
+  var incomeInput = document.getElementById("income-input");
+  var form = document.getElementById("entry-form");
+  var catButtons = document.querySelectorAll(".cat-btn");
+  var entryList = document.getElementById("entry-list");
+  var emptyNote = document.getElementById("empty-note");
+  var entryCount = document.getElementById("entry-count");
+  var dashboard = document.getElementById("dashboard");
+  var statStrip = document.getElementById("stat-strip");
+  var suggestionList = document.getElementById("suggestion-list");
+  var clearBtn = document.getElementById("clear-btn");
+  var itemError = document.getElementById("item-error");
+  var amountError = document.getElementById("amount-error");
+  var liveRegion = document.getElementById("live-region");
+  var undoToast = document.getElementById("undo-toast");
+  var undoMessage = document.getElementById("undo-message");
+  var meterFill = document.getElementById("meter-fill");
+  var meterText = document.getElementById("meter-text");
+
+  function setSelectedCat(cat) {
+    selectedCat = cat;
+    catButtons.forEach(function (b) { b.classList.toggle("active", b.dataset.cat === cat); });
+  }
+
+  itemInput.addEventListener("input", function () {
+    itemInput.classList.remove("invalid"); itemError.textContent = "";
+    var guess = suggestCategory(itemInput.value);
+    if (guess) setSelectedCat(guess);
+  });
+  amountInput.addEventListener("input", function () {
+    amountInput.classList.remove("invalid"); amountError.textContent = "";
+  });
+
+  catButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () { setSelectedCat(btn.dataset.cat); });
+  });
+
+  incomeInput.addEventListener("input", function () {
+    var v = parseFloat(incomeInput.value);
+    state.income = isNaN(v) || v < 0 ? 0 : v;
+    saveState();
+    render();
+  });
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = itemInput.value.trim();
+    var amount = parseFloat(amountInput.value);
+    var ok = true;
+
+    if (!name) {
+      itemInput.classList.add("invalid"); itemError.textContent = "Enter an item name"; ok = false;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      amountInput.classList.add("invalid"); amountError.textContent = "Enter an amount above 0"; ok = false;
+    }
+    if (!ok) return;
+
+    var cat = selectedCat || suggestCategory(name) || "unnecessary";
+    state.entries.push({
+      id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+      item: name, amount: amount, category: cat
+    });
+
+    itemInput.value = ""; amountInput.value = ""; setSelectedCat(null);
+    saveState();
+    render();
+    liveRegion.textContent = name + " added, " + fmt(amount) + ", " + cat + ".";
+    itemInput.focus();
+  });
+
+  entryList.addEventListener("click", function (e) {
+    var btn = e.target.closest(".del-btn");
+    if (!btn) return;
+    var id = btn.dataset.id;
+    var idx = state.entries.findIndex(function (en) { return en.id === id; });
+    if (idx === -1) return;
+    lastDeleted = { entry: state.entries[idx], index: idx };
+    state.entries.splice(idx, 1);
+    saveState();
+    render();
+    showUndo(lastDeleted.entry.item);
+  });
+
+  function showUndo(name) {
+    undoMessage.textContent = "Removed " + name + ".";
+    undoToast.classList.add("visible");
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(function () { undoToast.classList.remove("visible"); lastDeleted = null; }, 6000);
+  }
+  document.getElementById("undo-btn").addEventListener("click", function () {
+    if (!lastDeleted) return;
+    state.entries.splice(lastDeleted.index, 0, lastDeleted.entry);
+    lastDeleted = null;
+    clearTimeout(undoTimer);
+    undoToast.classList.remove("visible");
+    saveState();
+    render();
+  });
+
+  clearBtn.addEventListener("click", function () {
+    if (!state.entries.length) return;
+    if (confirm("Remove all logged spending items? This can't be undone.")) {
+      state.entries = [];
+      saveState();
+      render();
+      liveRegion.textContent = "All entries cleared.";
+    }
+  });
+
+  function computeStats() {
+    var total = 0, necessary = 0, unnecessary = 0;
+    var byItem = {};
+    state.entries.forEach(function (e) {
+      total += e.amount;
+      if (e.category === "necessary") necessary += e.amount; else unnecessary += e.amount;
+      var key = e.item.trim().replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+      byItem[key] = (byItem[key] || 0) + e.amount;
+    });
+    var leftover = state.income - total;
+    var itemsSorted = Object.keys(byItem).map(function (k) { return [k, byItem[k]]; })
+      .sort(function (a, b) { return b[1] - a[1]; });
+    return { total: total, necessary: necessary, unnecessary: unnecessary, leftover: leftover, itemsSorted: itemsSorted };
+  }
+
+  function buildSuggestions(stats) {
+    var tips = [];
+    var total = stats.total;
+    if (total === 0) return ["No spending logged yet — add some items to get suggestions."];
+
+    var unnecessaryPct = (stats.unnecessary / total) * 100;
+    var savingsRate = state.income > 0 ? (stats.leftover / state.income) * 100 : 0;
+
+    if (stats.leftover < 0) {
+      tips.push("You're spending " + fmt(-stats.leftover) + " more than you earn this month — look at trimming unnecessary costs first.");
+    } else if (state.income === 0) {
+      tips.push("Add your monthly income above to see your savings rate.");
+    } else if (savingsRate < 10) {
+      tips.push("You're saving only " + savingsRate.toFixed(1) + "% of your income. Aiming for 15–20% builds a stronger cushion.");
+    } else {
+      tips.push("You're saving " + savingsRate.toFixed(1) + "% of your income this month.");
+    }
+
+    if (unnecessaryPct > 40) {
+      tips.push("Unnecessary spending is " + unnecessaryPct.toFixed(1) + "% of your total — that's high. Consider cutting your top 1–2 non-essential items.");
+    } else if (unnecessaryPct > 20) {
+      tips.push("Unnecessary spending is " + unnecessaryPct.toFixed(1) + "% of your total — reasonable, but there's room to trim.");
+    } else {
+      tips.push("Unnecessary spending is a lean " + unnecessaryPct.toFixed(1) + "% of your total.");
+    }
+
+    if (stats.itemsSorted.length) {
+      var top = stats.itemsSorted[0];
+      tips.push("Your biggest single expense is '" + top[0] + "' at " + fmt(top[1]) + ".");
+    }
+    return tips;
+  }
+
+  function renderEntries() {
+    entryList.innerHTML = "";
+    emptyNote.style.display = state.entries.length ? "none" : "block";
+    entryCount.textContent = state.entries.length ? state.entries.length + (state.entries.length === 1 ? " item" : " items") : "";
+    state.entries.slice().reverse().forEach(function (e) {
+      var li = document.createElement("li");
+      li.innerHTML =
+        '<span class="item-name">' + escapeHtml(e.item) + '</span>' +
+        '<span class="item-amount">' + fmt(e.amount) + '</span>' +
+        '<span class="tag ' + e.category + '">' + e.category + '</span>' +
+        '<button class="del-btn" data-id="' + e.id + '" aria-label="Remove ' + escapeHtml(e.item) + '">&times;</button>';
+      entryList.appendChild(li);
+    });
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function renderMeter(stats) {
+    var pct = state.income > 0 ? (stats.total / state.income) * 100 : (stats.total > 0 ? 100 : 0);
+    var clamped = Math.min(pct, 100);
+    var color = "var(--forest)";
+    if (pct >= 100) color = "var(--danger)"; else if (pct >= 80) color = "var(--rust)";
+    meterFill.style.width = clamped + "%";
+    meterFill.style.background = color;
+    meterText.textContent = state.income > 0 ? pct.toFixed(0) + "% of income" : fmt(stats.total) + " spent";
+  }
+
+  function renderStats(stats) {
+    var rows = [
+      { label: "Income", value: state.income, color: "var(--ink)" },
+      { label: "Spent", value: stats.total, color: "var(--ink)" },
+      { label: "Necessary", value: stats.necessary, color: "var(--forest)" },
+      { label: "Unnecessary", value: stats.unnecessary, color: "var(--rust)" },
+      { label: "Left over", value: stats.leftover, color: stats.leftover >= 0 ? "var(--brass)" : "var(--danger)" }
+    ];
+    statStrip.innerHTML = rows.map(function (r) {
+      return '<div class="stat"><div class="label">' + r.label + '</div>' +
+        '<div class="value" style="color:' + r.color + '">' + fmt(r.value) + '</div></div>';
+    }).join("");
+  }
+
+  function renderSuggestions(stats) {
+    var tips = buildSuggestions(stats);
+    suggestionList.innerHTML = tips.map(function (t) { return "<li>" + escapeHtml(t) + "</li>"; }).join("");
+  }
+
+  function renderCharts(stats) {
+    var donutLabels = [], donutValues = [], donutColors = [];
+    if (stats.necessary > 0) { donutLabels.push("Necessary"); donutValues.push(stats.necessary); donutColors.push("#2F6F4E"); }
+    if (stats.unnecessary > 0) { donutLabels.push("Unnecessary"); donutValues.push(stats.unnecessary); donutColors.push("#9C4221"); }
+    if (stats.leftover > 0) { donutLabels.push("Left over"); donutValues.push(stats.leftover); donutColors.push("#8A6D3B"); }
+
+    var donutCtx = document.getElementById("donut-chart");
+    if (donutValues.length) {
+      if (donutChart) {
+        donutChart.data.labels = donutLabels;
+        donutChart.data.datasets[0].data = donutValues;
+        donutChart.data.datasets[0].backgroundColor = donutColors;
+        donutChart.update(reduceMotion ? "none" : undefined);
+      } else {
+        donutChart = new Chart(donutCtx, {
+          type: "doughnut",
+          data: { labels: donutLabels, datasets: [{ data: donutValues, backgroundColor: donutColors, borderColor: "#ffffff", borderWidth: 2 }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, animation: reduceMotion ? false : undefined }
+        });
+      }
+    } else if (donutChart) {
+      donutChart.destroy(); donutChart = null;
+    }
+    var legendEl = document.getElementById("donut-legend");
+    var total = donutValues.reduce(function (a, b) { return a + b; }, 0);
+    legendEl.innerHTML = donutLabels.map(function (l, i) {
+      var pct = total ? ((donutValues[i] / total) * 100).toFixed(0) : 0;
+      return '<span><span class="swatch" style="background:' + donutColors[i] + '"></span>' + l + " " + pct + "%</span>";
+    }).join("");
+
+    var topItems = stats.itemsSorted.slice(0, 6);
+    var barCtx = document.getElementById("bar-chart");
+    if (topItems.length) {
+      var labels = topItems.map(function (i) { return i[0]; });
+      var values = topItems.map(function (i) { return i[1]; });
+      if (barChart) {
+        barChart.data.labels = labels;
+        barChart.data.datasets[0].data = values;
+        barChart.update(reduceMotion ? "none" : undefined);
+      } else {
+        barChart = new Chart(barCtx, {
+          type: "bar",
+          data: { labels: labels, datasets: [{ data: values, backgroundColor: "#2F6F4E", borderRadius: 3, barThickness: 16 }] },
+          options: {
+            indexAxis: "y", responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            animation: reduceMotion ? false : undefined,
+            scales: {
+              x: { ticks: { callback: function (v) { return "$" + v; } }, grid: { color: "#e1e0d9" } },
+              y: { grid: { display: false } }
+            }
+          }
+        });
+      }
+    } else if (barChart) {
+      barChart.destroy(); barChart = null;
+    }
+  }
+
+  function render() {
+    incomeInput.value = state.income ? state.income : "";
+    renderEntries();
+    var stats = computeStats();
+    var hasData = state.entries.length > 0;
+    dashboard.classList.toggle("visible", hasData);
+    if (hasData) {
+      renderMeter(stats);
+      renderStats(stats);
+      renderCharts(stats);
+      renderSuggestions(stats);
+    }
+  }
+
+  loadTheme();
+  loadState();
+  render();
+})();
+</script>
+</body>
+</html>
